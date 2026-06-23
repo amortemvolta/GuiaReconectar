@@ -46,13 +46,13 @@ html,body{
 
 .vsl-box{
   position:relative;
-  /* Altura = viewport menos headline (~160px) e CTA (~120px) e padding */
-  height:calc(100svh - 330px);
-  min-height:300px;
-  max-height:calc(448px * 16 / 9);
-  /* Largura derivada da proporção 9:16 */
-  width:calc((100svh - 330px) * 9 / 16);
-  max-width:min(100%, calc(448px));
+  /* Altura = viewport menos headline e CTA */
+  height:calc(100svh - 280px);
+  min-height:400px;
+  max-height:800px;
+  /* Largura derivada de 9:16 */
+  width:calc((100svh - 280px) * 9 / 16);
+  max-width:min(100%, 450px);
   margin:0 auto;
   background:#000;
   border-radius:12px;
@@ -245,6 +245,17 @@ video.vsl-video{
 .cta-price strong{color:#030712;font-size:15px}
 
 /* ── PRINT PROTECTION ────────────────────────────────────── */
+@media (min-width: 768px){
+  .vsl-box{
+    height:calc(100svh - 240px);
+    width:calc((100svh - 240px) * 9 / 16);
+    max-width:480px;
+    max-height:860px;
+  }
+  .headline-wrap{ padding:16px 0 12px; }
+  .headline{ font-size:20px; }
+  .sub{ font-size:13px; }
+}
 @media print{
   .vsl-box,video{display:none!important}
   body::before{
