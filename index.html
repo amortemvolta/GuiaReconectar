@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>RECONECTAR — Diagnóstico do Loop da Desconexão</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+/* ═══ RESET & BASE ═══════════════════════════════════════════ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Inter',system-ui,sans-serif;background:#fff;color:#030712;-webkit-font-smoothing:antialiased}
+
+/* ═══ LAYOUT SHELL ══════════════════════════════════════════ */
+.quiz-shell{
+  display:flex;flex-direction:column;min-height:100svh;
+  max-width:448px;margin:0 auto;padding:0 16px;
+}
+
+/* ═══ TOP BAR (progress + back) ═════════════════════════════ */
+.top-bar{
+  position:sticky;top:0;z-index:100;background:#fff;
+  padding:16px 0 12px;display:grid;
+  grid-template-columns:32px 1fr 32px;align-items:center;gap:8px;
+}
+.back-btn{
+  background:none;border:none;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  width:32px;height:32px;color:#030712;
+  opacity:.5;transition:opacity .15s;
+}
+.back-btn:hover{opacity:1}
+.back-btn svg{display:block}
+
+.progress-track{
+  height:6px;background:#f1f1f1;border-radius:99px;overflow:hidden;
+}
+.progress-fill{
+  height:100%;background:#030712;border-radius:99px;
+  transition:width .5s cubic-bezier(.4,0,.2,1);width:0%;
+}
+
+/* ═══ SCREENS ════════════════════════════════════════════════ */
+.screen{display:none;flex-direction:column;flex:1;padding:20px 0 40px}
+.screen.active{display:flex}
+
+/* ═══ INTRO SCREEN ═══════════════════════════════════════════ */
+.intro-img{
+  width:100%;border-radius:16px;overflow:hidden;margin:16px 0;
+  aspect-ratio:4/3;background:#f1f1f1;
+}
+.intro-img img{width:100%;height:100%;object-fit:cover;display:block}
+.intro-img-fallback{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  font-size:3rem;
+}
+
+.intro-title{font-size:22px;font-weight:800;line-height:1.25;text-align:center;margin-bottom:8px}
+.intro-title .hl{background:#16a34a;color:#fff;padding:0 4px;border-radius:4px}
+.intro-sub{font-size:14px;color:#6b7280;text-align:center;margin-bottom:20px;line-height:1.5}
+.intro-proof{font-size:13px;color:#6b7280;text-align:center;margin-top:12px}
+
+/* ═══ QUESTION SCREEN ════════════════════════════════════════ */
+.q-wrap{flex:1;display:flex;flex-direction:column;justify-content:center;padding-top:24px}
+.q-title{
+  font-size:22px;font-weight:800;line-height:1.3;
+  text-align:center;margin-bottom:8px;color:#030712;
+}
+.q-title .hl{background:#16a34a;color:#fff;padding:1px 5px;border-radius:4px}
+.q-hint{font-size:13px;color:#6b7280;text-align:center;font-style:italic;margin-bottom:24px;line-height:1.5}
+
+/* ─ Options list ─ */
+.options{display:flex;flex-direction:column;gap:10px}
+.options.two-col{flex-direction:row;gap:10px}
+.options.two-col .opt{flex:1}
+
+/* ─ Base option card ─ */
+.opt{
+  display:flex;align-items:center;gap:12px;
+  background:#fff;border:1.5px solid #e5e7eb;border-radius:12px;
+  padding:14px 14px;cursor:pointer;text-align:left;width:100%;
+  font-family:'Inter',sans-serif;font-size:15px;font-weight:500;color:#030712;
+  transition:border-color .15s,background .15s,transform .1s;
+  min-height:54px;position:relative;
+}
+.opt:hover{border-color:#030712}
+.opt.selected{border-color:#030712;background:#030712;color:#fff}
+.opt.selected .opt-letter{background:#fff;color:#030712}
+.opt.selected .opt-emoji{filter:none}
+.opt.selected .opt-img-thumb{opacity:1}
+.opt.selected .opt-check{background:#030712;border-color:#030712}
+.opt.selected .opt-check::after{opacity:1}
+.opt.selected .opt-radio{border-color:#fff}
+.opt.selected .opt-radio::after{background:#fff;opacity:1}
+
+/* letter badge A/B/C */
+.opt-letter{
+  flex-shrink:0;width:26px;height:26px;border-radius:6px;
+  background:#f1f1f1;display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:700;color:#6b7280;
+}
+
+/* emoji */
+.opt-emoji{font-size:22px;flex-shrink:0;line-height:1}
+
+/* image thumbnail */
+.opt-img-thumb{
+  flex-shrink:0;width:48px;height:48px;border-radius:8px;
+  object-fit:cover;
+}
+.opt-img-fallback{
+  flex-shrink:0;width:48px;height:48px;border-radius:8px;
+  background:#f1f1f1;display:flex;align-items:center;justify-content:center;
+  font-size:20px;
+}
+
+/* checkbox (multi-select) */
+.opt-check{
+  flex-shrink:0;width:20px;height:20px;border-radius:5px;
+  border:1.5px solid #d1d5db;background:#fff;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;
+}
+.opt-check::after{
+  content:'✓';font-size:12px;font-weight:700;color:#fff;opacity:0;transition:opacity .15s;
+}
+.opt.selected .opt-check{background:#030712;border-color:#030712}
+.opt.selected .opt-check::after{opacity:1}
+
+/* radio (2-col) */
+.opt-radio{
+  flex-shrink:0;width:18px;height:18px;border-radius:50%;
+  border:1.5px solid #d1d5db;background:#fff;margin-left:auto;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.opt-radio::after{
+  content:'';width:8px;height:8px;border-radius:50%;background:#030712;opacity:0;transition:opacity .15s;
+}
+.opt.selected .opt-radio{border-color:#fff}
+.opt.selected .opt-radio::after{background:#fff;opacity:1}
+
+/* multi-select options have gray bg */
+.opts-multi .opt{background:#f9fafb}
+.opts-multi .opt.selected{background:#030712}
+
+/* continue button for multi-select */
+.btn-continue{
+  margin-top:20px;width:100%;padding:16px;
+  background:#16a34a;color:#fff;border:none;border-radius:12px;
+  font-family:'Inter',sans-serif;font-size:15px;font-weight:700;
+  cursor:pointer;transition:background .15s,transform .1s;
+}
+.btn-continue:hover{background:#15803d}
+.btn-continue:active{transform:scale(.99)}
+.btn-continue:disabled{background:#9ca3af;cursor:not-allowed}
+
+/* ─ name input screen ─ */
+.name-field{
+  border:1.5px solid #e5e7eb;border-radius:12px;
+  padding:14px 16px;font-family:'Inter',sans-serif;font-size:16px;
+  color:#030712;width:100%;outline:none;margin-bottom:12px;
+  transition:border-color .15s;
+}
+.name-field:focus{border-color:#030712}
+.name-field::placeholder{color:#9ca3af}
+
+/* ═══ TESTIMONIAL SCREEN ═════════════════════════════════════ */
+.testi-img-wrap{
+  width:100%;max-width:260px;margin:0 auto 20px;
+  aspect-ratio:9/16;border-radius:16px;overflow:hidden;
+  background:#f1f1f1;border:1px solid #e5e7eb;
+}
+.testi-img-wrap img{width:100%;height:100%;object-fit:cover;display:block}
+.testi-img-fallback{
+  width:100%;height:100%;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:8px;padding:20px;text-align:center;
+}
+.testi-img-fallback span{font-size:2.5rem}
+.testi-img-fallback p{font-size:11px;color:#9ca3af;line-height:1.5}
+.testi-img-fallback code{background:#f1f1f1;padding:1px 4px;border-radius:3px;font-size:10px}
+
+/* ═══ RESULT SCREEN ══════════════════════════════════════════ */
+.result-banner{
+  background:#fef2f2;border:1px solid #fecaca;border-radius:12px;
+  padding:14px 16px;text-align:center;font-size:14px;font-weight:600;
+  color:#dc2626;margin-bottom:20px;
+}
+.result-title{font-size:20px;font-weight:800;text-align:center;margin-bottom:4px}
+.result-sub{font-size:13px;color:#6b7280;text-align:center;margin-bottom:24px}
+
+/* chart */
+.chart-wrap{position:relative;margin-bottom:20px}
+.chart-svg{width:100%;display:block}
+.chart-label{
+  display:flex;justify-content:space-between;
+  font-size:11px;color:#9ca3af;margin-top:4px;
+}
+.chart-days{
+  position:absolute;top:8px;right:8px;
+  background:#f1f1f1;border-radius:6px;padding:3px 8px;
+  font-size:11px;font-weight:600;color:#374151;
+}
+
+/* comparison bars */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+.compare-card{
+  border:1.5px solid #e5e7eb;border-radius:12px;padding:16px;text-align:center;
+}
+.compare-bar-wrap{height:80px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:8px}
+.compare-bar{width:40px;border-radius:6px 6px 0 0;position:relative}
+.compare-bar.red{background:#ef4444;height:10%}
+.compare-bar.green{background:#16a34a;height:100%}
+.compare-pct{
+  position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+  font-size:11px;font-weight:700;
+}
+.compare-pct.red{color:#ef4444}
+.compare-pct.green{color:#16a34a}
+.compare-label{font-size:12px;color:#6b7280;line-height:1.4}
+
+.result-cta-label{font-size:15px;font-weight:800;text-align:center;margin-bottom:16px}
+
+/* ═══ VSL BUTTON (green CTA) ═════════════════════════════════ */
+.btn-cta{
+  width:100%;padding:17px;background:#16a34a;color:#fff;
+  border:none;border-radius:12px;font-family:'Inter',sans-serif;
+  font-size:15px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;
+  cursor:pointer;transition:background .15s,transform .1s;text-decoration:none;
+  display:block;text-align:center;
+}
+.btn-cta:hover{background:#15803d}
+.btn-cta:active{transform:scale(.99)}
+
+/* ═══ DIAGNOSIS TRANSITION ═══════════════════════════════════ */
+.diag-screen{
+  display:none;flex-direction:column;align-items:center;
+  justify-content:center;flex:1;padding:40px 0;text-align:center;
+}
+.diag-screen.active{display:flex}
+.diag-ring{
+  width:72px;height:72px;border-radius:50%;
+  border:3px solid #e5e7eb;border-top-color:#030712;
+  animation:spin .8s linear infinite;margin-bottom:24px;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.diag-title{font-size:18px;font-weight:700;margin-bottom:8px}
+.diag-list{display:flex;flex-direction:column;gap:10px;text-align:left;margin-top:20px;width:100%}
+.diag-item{font-size:14px;color:#9ca3af;padding-left:28px;position:relative;transition:color .3s}
+.diag-item::before{content:'○';position:absolute;left:0;color:#d1d5db;transition:all .3s}
+.diag-item.done{color:#030712}
+.diag-item.done::before{content:'✓';color:#16a34a}
+
+/* ═══ FOOTER ═════════════════════════════════════════════════ */
+.quiz-footer{
+  padding:16px 0;text-align:center;font-size:11px;color:#d1d5db;
+  border-top:1px solid #f1f1f1;margin-top:auto;
+}
+
+/* ═══ UTILITY ════════════════════════════════════════════════ */
+.spacer{flex:1}
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+.screen.active,.diag-screen.active{animation:fadeUp .3s ease}
+</style>
+</head>
+<body>
+
+<div class="quiz-shell">
+
+  <!-- TOP BAR -->
+  <div class="top-bar" id="top-bar">
+    <button class="back-btn" id="back-btn" aria-label="Voltar" style="visibility:hidden">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+    <div></div>
+  </div>
+
+  <!-- ══ SCREEN: INTRO ══════════════════════════════════════ -->
+  <div class="screen active" id="screen-intro">
+    <h1 class="intro-title">
+      Descubra Qual é o<br>
+      <span class="hl">Loop da Desconexão</span><br>
+      no Seu Relacionamento
+    </h1>
+    <p class="intro-sub">Responda 9 perguntas e receba um diagnóstico personalizado do padrão que está repetindo entre vocês</p>
+
+    <div class="intro-img">
+      <img src="midias/intro-quiz.jpg" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+      <div class="intro-img-fallback" style="display:none">❤️</div>
+    </div>
+
+    <button class="btn-cta" id="btn-start">COMEÇAR DIAGNÓSTICO →</button>
+    <p class="intro-proof">⚡ Mais de 3.200 casais já identificaram seu Loop</p>
+  </div>
+
+  <!-- ══ SCREEN: COMPROMISSO ═══════════════════════════════ -->
+  <div class="screen" id="screen-commit">
+    <div class="q-wrap">
+      <h2 class="q-title">🎁 PARABÉNS! Você vai receber um diagnóstico especial ao final!</h2>
+      <p class="q-hint">Conclua as próximas etapas para desbloquear seu Loop da Desconexão</p>
+      <p class="q-title" style="font-size:18px;margin-top:8px">Você se compromete a responder esse mini quiz?</p>
+      <div class="options two-col" style="margin-top:20px">
+        <button class="opt" data-next="screen-q1">
+          <span class="opt-emoji">✅</span>
+          <span>Sim</span>
+          <span class="opt-radio"></span>
+        </button>
+        <button class="opt" data-next="screen-intro">
+          <span class="opt-emoji">🚫</span>
+          <span>Não</span>
+          <span class="opt-radio"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q1 — Tempo juntos ══════════════════════════ -->
+  <div class="screen" id="screen-q1">
+    <div class="q-wrap">
+      <h2 class="q-title">Há quanto tempo vocês estão juntos?</h2>
+      <div class="options">
+        <button class="opt" data-next="screen-q2">
+          <span class="opt-letter">A</span>
+          <span>Menos de 2 anos</span>
+        </button>
+        <button class="opt" data-next="screen-q2">
+          <span class="opt-letter">B</span>
+          <span>Entre 2 e 5 anos</span>
+        </button>
+        <button class="opt" data-next="screen-q2">
+          <span class="opt-letter">C</span>
+          <span>Entre 5 e 10 anos</span>
+        </button>
+        <button class="opt" data-next="screen-q2">
+          <span class="opt-letter">D</span>
+          <span>Mais de 10 anos</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q2 — Clima em casa ════════════════════════ -->
+  <div class="screen" id="screen-q2">
+    <div class="q-wrap">
+      <h2 class="q-title">Como você descreveria o clima em casa hoje?</h2>
+      <div class="options">
+        <button class="opt" data-next="screen-name">
+          <span class="opt-emoji">😤</span>
+          <span>Tenso — brigas frequentes</span>
+        </button>
+        <button class="opt" data-next="screen-name">
+          <span class="opt-emoji">❄️</span>
+          <span>Frio e distante — silêncio pesado</span>
+        </button>
+        <button class="opt" data-next="screen-name">
+          <span class="opt-emoji">🎢</span>
+          <span>Irregular — ora bem, ora muito mal</span>
+        </button>
+        <button class="opt" data-next="screen-name">
+          <span class="opt-emoji">😐</span>
+          <span>Neutro — coexistência sem conexão</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: NAME ═══════════════════════════════════════ -->
+  <div class="screen" id="screen-name">
+    <div class="q-wrap">
+      <h2 class="q-title">Para personalizar seu diagnóstico, qual é o seu primeiro nome?</h2>
+      <p class="q-hint">Vamos usar seu nome para personalizar os resultados</p>
+      <input type="text" class="name-field" id="name-input" placeholder="Digite seu primeiro nome" autocomplete="given-name"/>
+      <button class="btn-continue" id="btn-name-continue">Continuar →</button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q3 — Após discussão ═══════════════════════ -->
+  <div class="screen" id="screen-q3">
+    <div class="q-wrap">
+      <h2 class="q-title">Quando vocês têm uma discussão, o que mais acontece depois?</h2>
+      <div class="options">
+        <button class="opt" data-next="screen-q4">
+          <span class="opt-emoji">🧊</span>
+          <span>Um some emocionalmente por dias</span>
+        </button>
+        <button class="opt" data-next="screen-q4">
+          <span class="opt-emoji">🌋</span>
+          <span>Escala até explodir de vez</span>
+        </button>
+        <button class="opt" data-next="screen-q4">
+          <span class="opt-emoji">😶</span>
+          <span>Fica tenso até "deixar passar"</span>
+        </button>
+        <button class="opt" data-next="screen-q4">
+          <span class="opt-emoji">🔄</span>
+          <span>Voltamos ao normal, mas o assunto retorna</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q4 — O que tentou ══════════════════════════ -->
+  <div class="screen" id="screen-q4">
+    <div class="q-wrap">
+      <h2 class="q-title">O que você já tentou para melhorar a situação?</h2>
+      <div class="options">
+        <button class="opt" data-next="screen-testi">
+          <span class="opt-img-fallback">💬</span>
+          <span>Já conversei várias vezes — sem resultado</span>
+        </button>
+        <button class="opt" data-next="screen-testi">
+          <span class="opt-img-fallback">📚</span>
+          <span>Li livros / conteúdos de relacionamento</span>
+        </button>
+        <button class="opt" data-next="screen-testi">
+          <span class="opt-img-fallback">🛋️</span>
+          <span>Já pensei em terapia, mas não fui</span>
+        </button>
+        <button class="opt" data-next="screen-testi">
+          <span class="opt-img-fallback">😶</span>
+          <span>Nada — prefiro guardar para mim</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: TESTEMUNHO (prova social) ══════════════════ -->
+  <div class="screen" id="screen-testi">
+    <div class="q-wrap" style="align-items:center">
+      <h2 class="q-title">Outros casais já reconheceram <span class="hl">esse mesmo padrão</span> — e conseguiram mudar</h2>
+      <div class="testi-img-wrap" style="margin:20px auto">
+        <img src="midias/quiz-depoimento-1.jpg" alt="Depoimento" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+        <div class="testi-img-fallback" style="display:none">
+          <span>📱</span>
+          <p>Adicione um print de depoimento em<br><code>midias/quiz-depoimento-1.jpg</code></p>
+        </div>
+      </div>
+      <button class="btn-continue" data-next="screen-q5">Continuar →</button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q5 — Impacto fora ══════════════════════════ -->
+  <div class="screen" id="screen-q5">
+    <div class="q-wrap">
+      <h2 class="q-title">Como isso está afetando você fora do relacionamento?</h2>
+      <p class="q-hint">Seja sincero(a) — isso vai personalizar seu diagnóstico</p>
+      <div class="options">
+        <button class="opt" data-next="screen-q6">
+          <span class="opt-emoji">😮‍💨</span>
+          <span>Estou mais cansado(a) e irritado(a) no geral</span>
+        </button>
+        <button class="opt" data-next="screen-q6">
+          <span class="opt-emoji">🏃</span>
+          <span>Tenho buscado motivos para ficar fora de casa</span>
+        </button>
+        <button class="opt" data-next="screen-q6">
+          <span class="opt-emoji">💔</span>
+          <span>Sinto que estou desistindo por dentro</span>
+        </button>
+        <button class="opt" data-next="screen-q6">
+          <span class="opt-emoji">🫥</span>
+          <span>Me sinto sozinho(a) mesmo estando junto</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q6 — Se nada mudar ════════════════════════ -->
+  <div class="screen" id="screen-q6">
+    <div class="q-wrap">
+      <h2 class="q-title">Se nada mudar nos próximos 6 meses, o que você imagina?</h2>
+      <div class="options">
+        <button class="opt" data-next="screen-q7">
+          <span class="opt-img-fallback">🔄</span>
+          <span>Continuaremos nesse looping de brigas e reconciliações</span>
+        </button>
+        <button class="opt" data-next="screen-q7">
+          <span class="opt-img-fallback">👻</span>
+          <span>Vamos virar dois estranhos morando juntos</span>
+        </button>
+        <button class="opt" data-next="screen-q7">
+          <span class="opt-img-fallback">💔</span>
+          <span>Um de nós vai propor separação</span>
+        </button>
+        <button class="opt" data-next="screen-q7">
+          <span class="opt-img-fallback">🤷</span>
+          <span>Não sei — tenho medo de pensar nisso</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: Q7 — Multi-select motivações ══════════════ -->
+  <div class="screen" id="screen-q7">
+    <div class="q-wrap">
+      <h2 class="q-title">O que identificar o <span class="hl">Loop da Desconexão</span> significaria para você?</h2>
+      <p class="q-hint">Selecione tudo que se aplica</p>
+      <div class="options opts-multi" id="opts-q7">
+        <button class="opt" data-multi>
+          <span class="opt-check"></span>
+          <span>Finalmente entenderia por que nada que tentei funcionou</span>
+        </button>
+        <button class="opt" data-multi>
+          <span class="opt-check"></span>
+          <span>Saberia exatamente por onde começar a mudar</span>
+        </button>
+        <button class="opt" data-multi>
+          <span class="opt-check"></span>
+          <span>Pararia de me sentir culpado(a) — é um padrão, não minha falha</span>
+        </button>
+        <button class="opt" data-multi>
+          <span class="opt-check"></span>
+          <span>Teria esperança real de que a situação pode melhorar</span>
+        </button>
+      </div>
+      <button class="btn-continue" id="btn-q7-continue" disabled data-next="screen-diag">Ver meu diagnóstico →</button>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: DIAGNÓSTICO (transição) ═══════════════════ -->
+  <div class="diag-screen" id="screen-diag">
+    <div class="diag-ring"></div>
+    <p class="diag-title" id="diag-greeting">Analisando suas respostas...</p>
+    <p style="font-size:14px;color:#6b7280">Calculando seu Loop da Desconexão</p>
+    <div class="diag-list">
+      <p class="diag-item" data-delay="0">Identificando padrão de comunicação</p>
+      <p class="diag-item" data-delay="1000">Cruzando com pesquisa de Gottman & Sue Johnson</p>
+      <p class="diag-item" data-delay="2200">Calculando seu Loop da Desconexão</p>
+      <p class="diag-item" data-delay="3400">Diagnóstico personalizado pronto</p>
+    </div>
+  </div>
+
+  <!-- ══ SCREEN: RESULTADO ══════════════════════════════════ -->
+  <div class="screen" id="screen-result">
+    <div class="result-banner">
+      🔓 Seu diagnóstico do Loop da Desconexão foi desbloqueado!
+    </div>
+
+    <h2 class="result-title" id="result-title">Sua Jornada de Reconexão</h2>
+    <p class="result-sub">Baseado nas suas respostas, criamos o caminho personalizado para você</p>
+
+    <!-- Gráfico -->
+    <div class="chart-wrap">
+      <div class="chart-days">30 dias</div>
+      <svg class="chart-svg" viewBox="0 0 340 160" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#ef4444"/>
+            <stop offset="50%" stop-color="#eab308"/>
+            <stop offset="100%" stop-color="#16a34a"/>
+          </linearGradient>
+        </defs>
+        <!-- Grid lines -->
+        <line x1="40" y1="10" x2="340" y2="10" stroke="#f1f1f1" stroke-width="1"/>
+        <line x1="40" y1="47" x2="340" y2="47" stroke="#f1f1f1" stroke-width="1"/>
+        <line x1="40" y1="85" x2="340" y2="85" stroke="#f1f1f1" stroke-width="1"/>
+        <line x1="40" y1="122" x2="340" y2="122" stroke="#f1f1f1" stroke-width="1"/>
+        <!-- Y labels -->
+        <text x="32" y="13" text-anchor="end" font-size="10" fill="#9ca3af">100</text>
+        <text x="32" y="50" text-anchor="end" font-size="10" fill="#9ca3af">75</text>
+        <text x="32" y="88" text-anchor="end" font-size="10" fill="#9ca3af">50</text>
+        <text x="32" y="125" text-anchor="end" font-size="10" fill="#9ca3af">25</text>
+        <!-- Triangle area -->
+        <polygon points="40,140 340,10 340,140" fill="url(#chartGrad)" opacity=".85"/>
+        <!-- Dot HOJE -->
+        <circle cx="40" cy="140" r="5" fill="#ef4444"/>
+        <!-- Label HOJE -->
+        <rect x="20" y="143" width="38" height="14" rx="3" fill="#f1f1f1"/>
+        <text x="39" y="153" text-anchor="middle" font-size="9" font-weight="600" fill="#374151">HOJE</text>
+        <!-- Dot 30 dias -->
+        <circle cx="340" cy="10" r="5" fill="#16a34a"/>
+      </svg>
+      <div class="chart-label">
+        <span>Desconectado</span>
+        <span>Reconectado</span>
+      </div>
+    </div>
+
+    <!-- Compare bars -->
+    <div class="compare-grid">
+      <div class="compare-card">
+        <div class="compare-bar-wrap">
+          <div class="compare-bar red">
+            <span class="compare-pct red">10%</span>
+          </div>
+        </div>
+        <p class="compare-label">Onde você está hoje<br><strong>Loop ativo</strong></p>
+      </div>
+      <div class="compare-card">
+        <div class="compare-bar-wrap">
+          <div class="compare-bar green">
+            <span class="compare-pct green">100%</span>
+          </div>
+        </div>
+        <p class="compare-label">Daqui a 30 dias<br><strong>Loop quebrado</strong></p>
+      </div>
+    </div>
+
+    <p class="result-cta-label">Para quebrar seu Loop, assista o vídeo abaixo e veja o método completo</p>
+    <a href="vsl.html" class="btn-cta" id="btn-to-vsl">VER MEU DIAGNÓSTICO COMPLETO →</a>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="quiz-footer">© 2025 RECONECTAR</div>
+
+</div><!-- /quiz-shell -->
+
+<script>
+(function(){
+'use strict';
+
+// ─── State ───────────────────────────────────────────────────
+const STEPS = [
+  'screen-intro',
+  'screen-commit',
+  'screen-q1',
+  'screen-q2',
+  'screen-name',
+  'screen-q3',
+  'screen-q4',
+  'screen-testi',
+  'screen-q5',
+  'screen-q6',
+  'screen-q7',
+  'screen-diag',
+  'screen-result',
+];
+const QUESTION_STEPS = ['screen-q1','screen-q2','screen-q3','screen-q4','screen-q5','screen-q6','screen-q7'];
+const TOTAL_Q = QUESTION_STEPS.length;
+
+let currentScreen = 'screen-intro';
+let history = [];
+let userName = '';
+
+// ─── DOM refs ────────────────────────────────────────────────
+const progressFill = document.getElementById('progress-fill');
+const backBtn      = document.getElementById('back-btn');
+const topBar       = document.getElementById('top-bar');
+const nameInput    = document.getElementById('name-input');
+const diagGreeting = document.getElementById('diag-greeting');
+const resultTitle  = document.getElementById('result-title');
+const btnStart     = document.getElementById('btn-start');
+const btnNameCont  = document.getElementById('btn-name-continue');
+const q7Opts       = document.getElementById('opts-q7');
+const btnQ7Cont    = document.getElementById('btn-q7-continue');
+
+// ─── Navigate ────────────────────────────────────────────────
+function goTo(screenId){
+  if(!document.getElementById(screenId)) return;
+
+  history.push(currentScreen);
+
+  // Hide current
+  const prev = document.getElementById(currentScreen);
+  if(prev){
+    prev.classList.remove('active');
+    if(prev.classList.contains('diag-screen')) prev.classList.remove('active');
+  }
+
+  // Show next
+  const next = document.getElementById(screenId);
+  if(next){
+    next.classList.add('active');
+  }
+
+  currentScreen = screenId;
+  updateProgress();
+  updateBackBtn();
+  window.scrollTo(0,0);
+}
+
+function goBack(){
+  if(!history.length) return;
+  const prev = history.pop();
+
+  const cur = document.getElementById(currentScreen);
+  if(cur){
+    cur.classList.remove('active');
+  }
+
+  const prevEl = document.getElementById(prev);
+  if(prevEl) prevEl.classList.add('active');
+
+  currentScreen = prev;
+  updateProgress();
+  updateBackBtn();
+  window.scrollTo(0,0);
+}
+
+function updateProgress(){
+  const qIdx = QUESTION_STEPS.indexOf(currentScreen);
+  let pct = 0;
+  if(currentScreen === 'screen-intro') pct = 0;
+  else if(currentScreen === 'screen-commit') pct = 5;
+  else if(qIdx >= 0) pct = ((qIdx+1) / TOTAL_Q) * 85;
+  else if(currentScreen === 'screen-name') pct = 30;
+  else if(currentScreen === 'screen-testi') pct = 55;
+  else if(currentScreen === 'screen-diag' || currentScreen === 'screen-result') pct = 100;
+  progressFill.style.width = pct + '%';
+}
+
+function updateBackBtn(){
+  const hideOn = ['screen-intro','screen-result'];
+  backBtn.style.visibility = hideOn.includes(currentScreen) ? 'hidden' : 'visible';
+  topBar.style.display = currentScreen === 'screen-result' ? 'none' : '';
+}
+
+// ─── Option clicks ───────────────────────────────────────────
+document.querySelectorAll('.opt[data-next]').forEach(btn => {
+  btn.addEventListener('click', function(){
+    const siblings = this.closest('.options').querySelectorAll('.opt');
+    siblings.forEach(s => s.classList.remove('selected'));
+    this.classList.add('selected');
+
+    const next = this.getAttribute('data-next');
+    setTimeout(() => goTo(next), 250);
+  });
+});
+
+// Continue buttons with data-next
+document.querySelectorAll('button.btn-continue[data-next]').forEach(btn => {
+  btn.addEventListener('click', function(){
+    const next = this.getAttribute('data-next');
+    if(next) goTo(next);
+  });
+});
+
+// ─── Start button ────────────────────────────────────────────
+btnStart.addEventListener('click', () => goTo('screen-commit'));
+
+// ─── Back button ─────────────────────────────────────────────
+backBtn.addEventListener('click', goBack);
+
+// ─── Name field ──────────────────────────────────────────────
+btnNameCont.addEventListener('click', () => {
+  const val = nameInput.value.trim();
+  userName = val || '';
+  sessionStorage.setItem('recon_name', userName);
+  goTo('screen-q3');
+});
+nameInput.addEventListener('keydown', e => {
+  if(e.key === 'Enter') btnNameCont.click();
+});
+
+// ─── Multi-select Q7 ─────────────────────────────────────────
+if(q7Opts){
+  q7Opts.querySelectorAll('.opt[data-multi]').forEach(btn => {
+    btn.addEventListener('click', function(){
+      this.classList.toggle('selected');
+      const anySelected = q7Opts.querySelectorAll('.opt.selected').length > 0;
+      btnQ7Cont.disabled = !anySelected;
+    });
+  });
+}
+
+btnQ7Cont.addEventListener('click', () => {
+  if(!btnQ7Cont.disabled) startDiagnosis();
+});
+
+// ─── Diagnosis animation ─────────────────────────────────────
+function startDiagnosis(){
+  // Hide current screen
+  const cur = document.getElementById(currentScreen);
+  if(cur) cur.classList.remove('active');
+
+  const diagEl = document.getElementById('screen-diag');
+  diagEl.classList.add('active');
+  currentScreen = 'screen-diag';
+  updateBackBtn();
+  window.scrollTo(0,0);
+
+  // Personalize greeting
+  const n = userName || sessionStorage.getItem('recon_name') || '';
+  if(n) diagGreeting.textContent = `Obrigado, ${n}! Analisando suas respostas...`;
+
+  // Animate checklist
+  diagEl.querySelectorAll('.diag-item').forEach(item => {
+    const delay = parseInt(item.getAttribute('data-delay')) || 0;
+    setTimeout(() => item.classList.add('done'), delay);
+  });
+
+  // Go to result after 4.5s
+  setTimeout(() => {
+    diagEl.classList.remove('active');
+    const resultEl = document.getElementById('screen-result');
+    resultEl.classList.add('active');
+    currentScreen = 'screen-result';
+
+    // Personalize result
+    const rn = userName || sessionStorage.getItem('recon_name') || '';
+    if(rn && resultTitle) resultTitle.textContent = `${rn}, sua Jornada de Reconexão`;
+
+    updateProgress();
+    updateBackBtn();
+    window.scrollTo(0,0);
+  }, 4800);
+}
+
+// ─── Init ────────────────────────────────────────────────────
+updateProgress();
+updateBackBtn();
+
+})();
+</script>
+</body>
+</html>
